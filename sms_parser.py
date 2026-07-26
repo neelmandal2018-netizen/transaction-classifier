@@ -1,6 +1,11 @@
 import re
+import os
+import requests
+from dotenv import load_dotenv
 from sample_messages import sample_sms
 from database import init_db, insert_transaction, get_all_transactions
+
+load_dotenv()
 
 def extract_amount(message):
     match = re.search(r'(?:Rs\.?|INR)\s?([\d,]+\.?\d*)', message)
@@ -49,15 +54,46 @@ CATEGORY_RULES = {
     'Transfer': ['UPI', 'PAYTM', 'PHONEPE', 'GPAY'],
 }
 
-def categorize(merchant):
+CATEGORIES = ["Food", "Shopping", "Transport", "Bills", "Income", "Transfer", "Person-to-person", "Other"]
+
+def categorize_with_llm(merchant, raw_message):
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    prompt = f"""Classify this bank transaction into exactly one of these categories: {', '.join(CATEGORIES)}.
+
+Merchant/recipient: {merchant}
+Full message: {raw_message}
+
+Reply with ONLY the category name, nothing else."""
+
+    try:
+        response = requests.post(
+            url="https://openrouter.ai/api/v1/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}"},
+            json={
+                "model": "openrouter/free",
+                "messages": [{"role": "user", "content": prompt}]
+            }
+        )
+        result = response.json()
+        category = result["choices"][0]["message"]["content"].strip()
+        if category in CATEGORIES:
+            return category
+        return "Other"
+    except Exception as e:
+        print(f"LLM categorization failed: {e}")
+        return "Uncategorized"
+
+def categorize(merchant, raw_message=None):
     if not merchant:
-        return 'Uncategorized'
+        return "Uncategorized"
     merchant_upper = merchant.upper()
     for category, keywords in CATEGORY_RULES.items():
         for keyword in keywords:
             if keyword in merchant_upper:
                 return category
-    return 'Uncategorized'
+    if raw_message:
+        return categorize_with_llm(merchant, raw_message)
+    return "Uncategorized"
 
 if __name__ == "__main__":
     init_db()
@@ -66,7 +102,7 @@ if __name__ == "__main__":
         txn_type = extract_type(sms)
         date = extract_date(sms)
         merchant = extract_merchant(sms, txn_type)
-        category = categorize(merchant)
+        category = categorize(merchant, sms)
         insert_transaction(amount, txn_type, date, merchant, category, sms)
 
     print("All transactions stored. Fetching from database:\n")

@@ -17,7 +17,7 @@ if st.button("Parse & Save"):
         txn_type = extract_type(sms)
         date = extract_date(sms)
         merchant = extract_merchant(sms, txn_type)
-        category = categorize(merchant)
+        category = categorize(merchant, sms)
         insert_transaction(amount, txn_type, date, merchant, category, sms)
     st.success(f"Parsed and saved {len(lines)} message(s)!")
 
