@@ -26,7 +26,6 @@ def extract_merchant(message, txn_type):
     slash_match = re.search(r'UPI/(?:DR|CR)/\d+/([A-Za-z0-9 ]+?)/', message)
     if slash_match:
         return slash_match.group(1).strip()
-
     if txn_type == 'debit':
         match = re.search(r'\bto\s+([A-Za-z0-9 ]+?)(?:\s+via|\.|,|$)', message)
         if match:
@@ -38,8 +37,26 @@ def extract_merchant(message, txn_type):
         match = re.search(r'\btowards\s+([A-Za-z0-9 ]+?)(?:\s+on|\.|,|$)', message)
         if match:
             return match.group(1).strip()
-
     return None
+
+CATEGORY_RULES = {
+    'Food': ['SWIGGY', 'ZOMATO', 'DOMINOS', 'MCDONALD'],
+    'Shopping': ['AMAZON', 'FLIPKART', 'MYNTRA'],
+    'Transport': ['UBER', 'OLA', 'RAPIDO'],
+    'Bills': ['ELECTRICITY', 'AIRTEL', 'JIO', 'BROADBAND'],
+    'Income': ['SALARY', 'REFUND', 'INTEREST'],
+    'Transfer': ['UPI', 'PAYTM', 'PHONEPE', 'GPAY'],
+}
+
+def categorize(merchant):
+    if not merchant:
+        return 'Uncategorized'
+    merchant_upper = merchant.upper()
+    for category, keywords in CATEGORY_RULES.items():
+        for keyword in keywords:
+            if keyword in merchant_upper:
+                return category
+    return 'Uncategorized'
 
 if __name__ == "__main__":
     for sms in sample_sms:
@@ -47,4 +64,5 @@ if __name__ == "__main__":
         txn_type = extract_type(sms)
         date = extract_date(sms)
         merchant = extract_merchant(sms, txn_type)
-        print(f"Amount: {amount} | Type: {txn_type} | Date: {date} | Merchant: {merchant}")
+        category = categorize(merchant)
+        print(f"Amount: {amount} | Type: {txn_type} | Date: {date} | Merchant: {merchant} | Category: {category}")
