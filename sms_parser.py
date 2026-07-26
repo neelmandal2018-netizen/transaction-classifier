@@ -1,5 +1,6 @@
 import re
 from sample_messages import sample_sms
+from database import init_db, insert_transaction, get_all_transactions
 
 def extract_amount(message):
     match = re.search(r'(?:Rs\.?|INR)\s?([\d,]+\.?\d*)', message)
@@ -59,10 +60,15 @@ def categorize(merchant):
     return 'Uncategorized'
 
 if __name__ == "__main__":
+    init_db()
     for sms in sample_sms:
         amount = extract_amount(sms)
         txn_type = extract_type(sms)
         date = extract_date(sms)
         merchant = extract_merchant(sms, txn_type)
         category = categorize(merchant)
-        print(f"Amount: {amount} | Type: {txn_type} | Date: {date} | Merchant: {merchant} | Category: {category}")
+        insert_transaction(amount, txn_type, date, merchant, category, sms)
+
+    print("All transactions stored. Fetching from database:\n")
+    for row in get_all_transactions():
+        print(row)
